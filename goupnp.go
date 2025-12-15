@@ -153,7 +153,26 @@ var CharsetReaderDefault func(charset string, input io.Reader) (io.Reader, error
 
 // HTTPClient specifies the http.Client object used when fetching the XML from the UPnP server.
 // HTTPClient defaults the http.DefaultClient.  This may be overridden by the importing application.
+//
+// In order to override the HTTP client used on a per-request basis, use [WithHTTPClient].
 var HTTPClientDefault = http.DefaultClient
+
+type httpClientContextKey struct{}
+
+// WithHTTPClient returns a context with the HTTP client set. If c is nil, it
+// means to use the default HTTP client specified by [HTTPClientDefault].
+func WithHTTPClient(ctx context.Context, c *http.Client) context.Context {
+	return context.WithValue(ctx, httpClientContextKey{}, c)
+}
+
+// httpClient returns the HTTP client from context, or [HTTPClientDefault] if
+// not set or nil.
+func httpClient(ctx context.Context) *http.Client {
+	if c, ok := ctx.Value(httpClientContextKey{}).(*http.Client); ok && c != nil {
+		return c
+	}
+	return HTTPClientDefault
+}
 
 func requestXml(ctx context.Context, url string, defaultSpace string, doc interface{}) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
@@ -164,7 +183,7 @@ func requestXml(ctx context.Context, url string, defaultSpace string, doc interf
 		return err
 	}
 
-	resp, err := HTTPClientDefault.Do(req)
+	resp, err := httpClient(ctx).Do(req)
 	if err != nil {
 		return err
 	}
